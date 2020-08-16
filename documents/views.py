@@ -10,6 +10,8 @@ from .models import Document
 from recycleBin.models import *
 from team.models import Team
 from rest_framework.response import Response
+from rest_framework import filters
+from django_filters.rest_framework import DjangoFilterBackend
 import datetime
 # Create your views here.
 #编辑文档
@@ -37,33 +39,36 @@ class DocEditViewset(mixins.RetrieveModelMixin,mixins.ListModelMixin, mixins.Cre
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         # 创建团队空间 登录即可创建。
-        if serializer.validated_data["type"] == 1:  # 必须加引号！！！！！
-            self.perform_create(serializer)
-            headers = self.get_success_headers(serializer.data)
-            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-        # 创建文件
-        elif serializer.validated_data["type"] == 0:
-            # 创建个人文档
-            if "parent_doc" not in serializer.validated_data:  # parent _doc 空创建单个文件
+        if "type" not in serializer.validated_data:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        else:
+            if serializer.validated_data["type"] == 1:  # 必须加引号！！！！！
                 self.perform_create(serializer)
                 headers = self.get_success_headers(serializer.data)
                 return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-            else:  # 创建团队文档
-                project = serializer.validated_data["parent_doc"].id
-                # 请求的用户是团队的创建者。老大
-                check_project = Document.objects.filter(id=project, create_user=request.user)
-                # 请求用户是团队的协作者
-                colla_project = Team.objects.filter(document_id=project, user=request.user)
-                # 是老大/协作者
-                if check_project.count() > 0 or colla_project.count() > 0:
+            # 创建文件
+            elif serializer.validated_data["type"] == 0:
+                # 创建个人文档
+                if "parent_doc" not in serializer.validated_data:  # parent _doc 空创建单个文件
                     self.perform_create(serializer)
                     headers = self.get_success_headers(serializer.data)
                     return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-                else:  # 请求失败
-                    return Response(status=status.HTTP_401_UNAUTHORIZED)
+                else:  # 创建团队文档
+                    project = serializer.validated_data["parent_doc"].id
+                    # 请求的用户是团队的创建者。老大
+                    check_project = Document.objects.filter(id=project, create_user=request.user)
+                    # 请求用户是团队的协作者
+                    colla_project = Team.objects.filter(document_id=project, user=request.user)
+                    # 是老大/协作者
+                    if check_project.count() > 0 or colla_project.count() > 0:
+                        self.perform_create(serializer)
+                        headers = self.get_success_headers(serializer.data)
+                        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+                    else:  # 请求失败
+                        return Response(status=status.HTTP_401_UNAUTHORIZED)
 
-        else:
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            else:
+                return Response(status=status.HTTP_204_NO_CONTENT)
 
     def perform_create(self, serializer):
         if "create_by_model" in serializer.validated_data:  # 有模板
@@ -74,6 +79,7 @@ class DocEditViewset(mixins.RetrieveModelMixin,mixins.ListModelMixin, mixins.Cre
                 id=serializer.validated_data["create_by_model"].id).serializable_value('name')
             serializer.validated_data["content"] = content_temp
             serializer.validated_data["name"] = name_temp
+        serializer.validated_data["last_modify_user"]= serializer.validated_data["create_user"]#add
         instance = serializer.save()
         project = instance.parent_doc  # 父文档
         # 新建文档继承团队的协作关系
@@ -117,7 +123,7 @@ class DocEditViewset(mixins.RetrieveModelMixin,mixins.ListModelMixin, mixins.Cre
                             instance._prefetched_objects_cache = {}
                         return Response(serializer.data)
                     else:
-                        return Response(status=status.HTTP_204_NO_CONTENT)
+                        return Response(status=status.HTTP_401_UNAUTHORIZED)
                 else:  # 团队文档
                     # if 老大 or 文档创建者 or role=0
                     if instance.role == 0 or Document.objects.filter(id=instance.id,
@@ -136,7 +142,7 @@ class DocEditViewset(mixins.RetrieveModelMixin,mixins.ListModelMixin, mixins.Cre
                         return Response(serializer.data)
                     else:
                         return Response(status=status.HTTP_401_UNAUTHORIZED)  # 没权限改团队文档
-                    return Response(status=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
+                    return Response(status=status.HTTP_401_UNAUTHORIZED)
             else:
                 return Response(status=status.HTTP_401_UNAUTHORIZED)  # 有人在编辑
         else:
@@ -145,6 +151,8 @@ class DocEditViewset(mixins.RetrieveModelMixin,mixins.ListModelMixin, mixins.Cre
     def perform_update(self, serializer):
         instance = serializer.save()
         instance.status = 0  # 编辑后是草稿状态需要发布按钮才能复原为1
+        #instance.last_modify_user=self.request.user
+        print(self.request.user)
         instance.save()
 
     def destroy(self, request, *args, **kwargs):
@@ -470,7 +478,8 @@ class TemplatesViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     queryset = Document.objects.all()
     permission_classes = (IsAuthenticated,)
     authentication_classes = (JSONWebTokenAuthentication, authentication.SessionAuthentication)
-
+    filter_backends = (filters.SearchFilter, filters.OrderingFilter,DjangoFilterBackend)
+    search_fields = ('name',)
     def get_queryset(self):
         self.queryset=Document.objects.filter(type=2)
         return self.queryset

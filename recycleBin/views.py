@@ -31,10 +31,12 @@ class Recall(mixins.RetrieveModelMixin,viewsets.GenericViewSet):
         instance.status=1 #恢复到发布状态
         instance.save()
         RecycleBin.objects.get(document_id=instance.id).delete()
+        '''
         res = {"code": None, "data": None}
         res["code"] = 200
         res['data'] = "success"
-        return JsonResponse(res, safe=False)
+        '''
+        return Response(status=status.HTTP_200_OK)
 
 class Pack( mixins.DestroyModelMixin, viewsets.GenericViewSet):
     queryset = Document.objects.all()
@@ -50,4 +52,36 @@ class Pack( mixins.DestroyModelMixin, viewsets.GenericViewSet):
 
     def perform_destroy(self, instance):
         instance.delete()
+#全部还原
+class AllRecall(mixins.ListModelMixin,viewsets.GenericViewSet):
+    queryset = Document.objects.all()
+    permission_classes = (IsAuthenticated,)
+    serializer_class=RecycleEditSerializer
+    authentication_classes = (JSONWebTokenAuthentication, authentication.SessionAuthentication)
+    def list(self, request, *args, **kwargs):
+        recycles=RecycleBin.objects.all()
+        docs = []
+        for recycle in recycles:
+            docs.append(recycle.document)
+        for doc in docs:
+            doc.status=1
+            doc.save()
+        RecycleBin.objects.all().delete()
+        return Response(status=status.HTTP_200_OK)
+
+#全部删除
+class AllPack(mixins.ListModelMixin,viewsets.GenericViewSet):
+    queryset = Document.objects.all()
+    permission_classes = (IsAuthenticated,)
+    serializer_class=RecycleEditSerializer
+    authentication_classes = (JSONWebTokenAuthentication, authentication.SessionAuthentication)
+    def list(self, request, *args, **kwargs):
+        recycles=RecycleBin.objects.all()
+        docs=[]
+        for recycle in recycles:
+            docs.append(recycle.document)
+        for doc in docs:
+            doc.delete()
+        RecycleBin.objects.all().delete()
+        return Response(status=status.HTTP_200_OK)
 

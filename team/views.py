@@ -41,28 +41,33 @@ class AddMemberViewset(mixins.CreateModelMixin,viewsets.GenericViewSet):
     permission_classes = (IsAuthenticated,)
     authentication_classes = (JSONWebTokenAuthentication, authentication.SessionAuthentication)
 
-
-    #如果之前已经加入协作报400的错
+    # 如果之前已经加入协作报400的错
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         doc = serializer.validated_data['document']
         person = serializer.validated_data['user']
-        #如果是为团队添加协作关系
+        # 如果是为团队添加协作关系
         if doc.type == 1:
             # 请求的用户是团队的老大
             check_project = Document.objects.filter(create_user=request.user, id=doc.id)
             # 请求用户是团队的协作者
             colla_project = Team.objects.filter(document_id=doc.id, user=request.user)
             if check_project.count() > 0 or colla_project.count() > 0:
-                #给被邀请人发送type1消息
+
+                # 如果要添加的是团队的老大/自己，则返回400
+                if User.objects.filter(Q(id=person.id), Q(id=request.user.id)).count() > 0 or Document.objects.filter(
+                        create_user=person, id=doc.id).count() > 0:
+                    return Response(status=status.HTTP_400_BAD_REQUEST)
+
+                # 给被邀请人发送type1消息
                 Message.objects.create(user=person, document=doc, origin_user=request.user, type=1)
                 coworker = get(doc)
                 return JsonResponse(coworker, safe=False)
             else:  # 请求失败
                 return Response(status=status.HTTP_401_UNAUTHORIZED)
 
-        #如果是为文档添加协作关系
+        # 如果是为文档添加协作关系
         elif doc.type == 0:
             # 为个人文档添加协作关系
             if doc.parent_doc == None:
@@ -70,15 +75,22 @@ class AddMemberViewset(mixins.CreateModelMixin,viewsets.GenericViewSet):
                 check_author = Document.objects.filter(create_user=request.user, id=doc.id)
                 colla_author = Team.objects.filter(document_id=doc.id, user=request.user)
                 if check_author.count() > 0 or colla_author.count() > 0:
+
+                    # 如果要添加的是文档创建者/自己，则返回400
+                    if User.objects.filter(Q(id=person.id),
+                                           Q(id=request.user.id)).count() > 0 or Document.objects.filter(
+                        create_user=person, id=doc.id).count() > 0:
+                        return Response(status=status.HTTP_400_BAD_REQUEST)
+
                     self.perform_create(serializer)
                     # 给被加入协作者的人发type5消息
                     Message.objects.create(user=person, document=doc, origin_user=request.user, type=5)
-                    #获取协作者列表
+                    # 获取协作者列表
                     coworker = get(doc)
                     return JsonResponse(coworker, safe=False)
                 else:
                     return Response(status=status.HTTP_401_UNAUTHORIZED)
-            #为团队文档添加协作关系
+            # 为团队文档添加协作关系
             else:
                 project = doc.parent_doc
                 # 请求的用户是团队的老大
@@ -86,10 +98,18 @@ class AddMemberViewset(mixins.CreateModelMixin,viewsets.GenericViewSet):
                 # 请求用户是团队的协作者
                 colla_project = Team.objects.filter(document_id=project, user=request.user)
                 if check_project.count() > 0 or colla_project.count() > 0:
+
+                    # 如果要添加的是团队的老大/自己/文档创建者，则返回400
+                    if User.objects.filter(Q(id=person.id),
+                                           Q(id=request.user.id)).count() > 0 or Document.objects.filter(
+                        create_user=person, id=doc.id).count() > 0 or Document.objects.filter(
+                        create_user=person, id=project.id).count() > 0:
+                        return Response(status=status.HTTP_400_BAD_REQUEST)
+
                     self.perform_create(serializer)
                     # 给被加入协作者的人发type5消息
                     Message.objects.create(user=person, document=doc, origin_user=request.user, type=5)
-                    #获取协作者列表
+                    # 获取协作者列表
                     coworker = get(doc)
                     return JsonResponse(coworker, safe=False)
                 else:  # 请求失败

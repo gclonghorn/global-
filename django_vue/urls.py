@@ -83,7 +83,10 @@ router.register(r'RecycleBin', RecycleBinViewset, basename='RecycleBin')
 router.register(r'Recall', Recall, basename='Recall')
 #彻底删除
 router.register(r'Pack', Pack, basename='Pack')
-
+#全部彻底删除
+router.register(r'AllPack', AllPack, basename='AllPack')
+#全部恢复
+router.register(r'AllRecall', AllRecall, basename='AllRecall')
 
 urlpatterns = [
     path('admin/', admin.site.urls), #django管理站点

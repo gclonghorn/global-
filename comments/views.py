@@ -4,7 +4,7 @@ from .models import Comment
 from team.models import *
 from message.models import *
 from .serializers import *
-from documents.serializers import DocListSerializer
+from documents.serializers import *
 from  rest_framework import authentication
 from rest_framework_jwt.authentication import JSONWebTokenAuthentication
 from rest_framework.permissions import IsAuthenticated
@@ -69,7 +69,7 @@ class CollectList(mixins.ListModelMixin,viewsets.GenericViewSet):
     list:我的收藏
     '''
     queryset = Document.objects.all()
-    serializer_class = DocListSerializer
+    serializer_class = DocSerializer
     permission_classes = (IsAuthenticated,)
     authentication_classes = (JSONWebTokenAuthentication, authentication.SessionAuthentication)
 
