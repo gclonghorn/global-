@@ -23,7 +23,7 @@ class Document(models.Model):
     #模板
     create_by_model=models.ForeignKey('self', on_delete=models.CASCADE,  related_name='model', verbose_name="文档模板", null=True,blank=True,help_text="模板")
     thumbnail=models.ImageField(upload_to='upload', null=True, blank=True, verbose_name="缩略图", help_text="缩略图")
-
+    #now_editor= models.ForeignKey(User,related_name='edit', on_delete=models.CASCADE, verbose_name="当前编辑者", null=True)
     def __str__(self):
         return self.name
 

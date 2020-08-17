@@ -11,22 +11,15 @@ from .models import Team, User
 from documents.models import Document
 from .serializers import EditTeamSerializer, DeleteMemberSerializer
 
-#获取协作者+创建者
+#获取协作者role=0+管理员role=1
 def get(instance):
     # 查找Team里该文档的协作记录
     cos = Team.objects.filter(document_id=instance.id)
     aws = []
-    ids = []
-    person = User.objects.get(id=instance.create_user.id)
-    d = {'id': person.id, 'username': person.username, 'head': str(person.head)}
-    aws.append(d)
-    ids.append(person.id)
     for co in cos:
         person = User.objects.get(id=co.user_id)
-        if person.id not in ids:
-            d = {'id': person.id, 'username': person.username, 'head': str(person.head)}
-            aws.append(d)
-            ids.append(person.id)
+        d = {'id': person.id, 'username': person.username, 'head': str(person.head),'role':co.role}
+        aws.append(d)
     return aws
 
 
@@ -45,43 +38,33 @@ class AddMemberViewset(mixins.CreateModelMixin,viewsets.GenericViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        doc = serializer.validated_data['document']
-        person = serializer.validated_data['user']
+        doc = serializer.validated_data['document']  #要添加协作关系的文档/团队
+        person = serializer.validated_data['user'] #被添加人
         # 如果是为团队添加协作关系
         if doc.type == 1:
-            # 请求的用户是团队的老大
-            check_project = Document.objects.filter(create_user=request.user, id=doc.id)
-            # 请求用户是团队的协作者
+            # 请求用户是团队的协作者或团队的创建者
             colla_project = Team.objects.filter(document_id=doc.id, user=request.user)
-            if check_project.count() > 0 or colla_project.count() > 0:
-
-                # 如果要添加的是团队的老大/自己，则返回400
-                if User.objects.filter(Q(id=person.id), Q(id=request.user.id)).count() > 0 or Document.objects.filter(
-                        create_user=person, id=doc.id).count() > 0:
+            if colla_project.count() > 0:
+                '''
+                # 如果被添加人是团队的创建者或协作者（这其中包含了自己），则返回400
+                if Team.objects.filter(document_id=doc.id, user=person).count()>0:
                     return Response(status=status.HTTP_400_BAD_REQUEST)
-
+                这个判断多余了，因为team数据库设置了不能重复加，所以team已有的协作关系不能再加了
+                '''
+                #self.perform_create(serializer) 需要发送邀请，不能直接添加
                 # 给被邀请人发送type1消息
                 Message.objects.create(user=person, document=doc, origin_user=request.user, type=1)
                 coworker = get(doc)
                 return JsonResponse(coworker, safe=False)
-            else:  # 请求失败
+            else:  # 没有权限给团队添加协作关系
                 return Response(status=status.HTTP_401_UNAUTHORIZED)
-
         # 如果是为文档添加协作关系
         elif doc.type == 0:
             # 为个人文档添加协作关系
             if doc.parent_doc == None:
                 # 请求者是文档创建者或者协作者
-                check_author = Document.objects.filter(create_user=request.user, id=doc.id)
-                colla_author = Team.objects.filter(document_id=doc.id, user=request.user)
-                if check_author.count() > 0 or colla_author.count() > 0:
-
-                    # 如果要添加的是文档创建者/自己，则返回400
-                    if User.objects.filter(Q(id=person.id),
-                                           Q(id=request.user.id)).count() > 0 or Document.objects.filter(
-                        create_user=person, id=doc.id).count() > 0:
-                        return Response(status=status.HTTP_400_BAD_REQUEST)
-
+                colla_project = Team.objects.filter(document_id=doc.id, user=request.user)
+                if colla_project.count() > 0:
                     self.perform_create(serializer)
                     # 给被加入协作者的人发type5消息
                     Message.objects.create(user=person, document=doc, origin_user=request.user, type=5)
@@ -92,20 +75,9 @@ class AddMemberViewset(mixins.CreateModelMixin,viewsets.GenericViewSet):
                     return Response(status=status.HTTP_401_UNAUTHORIZED)
             # 为团队文档添加协作关系
             else:
-                project = doc.parent_doc
-                # 请求的用户是团队的老大
-                check_project = Document.objects.filter(id=project.id, create_user=request.user)
-                # 请求用户是团队的协作者
-                colla_project = Team.objects.filter(document_id=project, user=request.user)
-                if check_project.count() > 0 or colla_project.count() > 0:
-
-                    # 如果要添加的是团队的老大/自己/文档创建者，则返回400
-                    if User.objects.filter(Q(id=person.id),
-                                           Q(id=request.user.id)).count() > 0 or Document.objects.filter(
-                        create_user=person, id=doc.id).count() > 0 or Document.objects.filter(
-                        create_user=person, id=project.id).count() > 0:
-                        return Response(status=status.HTTP_400_BAD_REQUEST)
-
+                #添加人是团队创建者/团队协作者/文档创建者/文档协作者==team里有数据
+                colla_project = Team.objects.filter(document_id=doc.id, user=request.user)
+                if colla_project.count() > 0:
                     self.perform_create(serializer)
                     # 给被加入协作者的人发type5消息
                     Message.objects.create(user=person, document=doc, origin_user=request.user, type=5)
@@ -114,8 +86,7 @@ class AddMemberViewset(mixins.CreateModelMixin,viewsets.GenericViewSet):
                     return JsonResponse(coworker, safe=False)
                 else:  # 请求失败
                     return Response(status=status.HTTP_401_UNAUTHORIZED)
-
-        else:
+        else:#文档参数错误
             return Response(status=status.HTTP_204_NO_CONTENT)
 
     def perform_create(self, serializer):
@@ -124,7 +95,8 @@ class AddMemberViewset(mixins.CreateModelMixin,viewsets.GenericViewSet):
         if doc.type == 1:
             child_docs_list = Document.objects.filter(parent_doc=instance.document_id)  # 项目下属文档
             for child_doc in child_docs_list:
-                Team.objects.create(document=child_doc, user=instance.user)
+                if Team.objects.filter(document=child_doc, user=instance.user).count() == 0:
+                    Team.objects.create(document=child_doc, user=instance.user)
 
 
 
@@ -141,8 +113,8 @@ class DeleteMemberViewset(mixins.CreateModelMixin,viewsets.GenericViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        doc = serializer.validated_data['document']
-        person = serializer.validated_data['user']
+        doc = serializer.validated_data['document'] #被解除协作关系的文档
+        person = serializer.validated_data['user'] #被删除者
         #如果没有该协作记录，返回401
         if Team.objects.filter(document=doc, user=person).count() == 0:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
@@ -151,17 +123,19 @@ class DeleteMemberViewset(mixins.CreateModelMixin,viewsets.GenericViewSet):
         #如果是为团队删除协作关系
         if doc.type == 1:
             # 请求的用户是团队的老大，则给被踢的人发type4消息
-            check_project = Document.objects.filter(create_user=request.user, id=doc.id)
-            # 请求用户是要删除的人，则给老大发type3消息
-            myself = Team.objects.filter(Q(user=request.user), Q(user=person))
+            # 请求用户是要删除的人，且请求者是普通协作者，则给老大发type3消息
+            myself = Team.objects.filter(Q(user=request.user), Q(user=person),role=0)
             #请求的用户是团队的老大
-            if check_project.count() > 0:
-                self.perform_destroy(instance)
-                #给被踢的人发type4消息
-                Message.objects.create(user=person, document=doc, origin_user=request.user, type=4)
-                #获取协作者列表
-                coworker = get(doc)
-                return JsonResponse(coworker, safe=False)
+            if Team.objects.filter(user=request.user,document=doc,role=1).count()>0:
+                if Team.objects.filter(user=person, document=doc, role=1).count() > 0:#被删除者不能是管理者
+                    return Response(status=status.HTTP_401_UNAUTHORIZED)
+                else:
+                    self.perform_destroy(instance)
+                    #给被踢的人发type4消息
+                    Message.objects.create(user=person, document=doc, origin_user=request.user, type=4)
+                    #获取协作者列表
+                    coworker = get(doc)
+                    return JsonResponse(coworker, safe=False)
             # 请求用户是要删除的人
             elif myself.count() > 0:
                 self.perform_destroy(instance)
@@ -178,17 +152,19 @@ class DeleteMemberViewset(mixins.CreateModelMixin,viewsets.GenericViewSet):
             # 为个人文档删除协作关系
             if doc.parent_doc == None:
                 # 请求者是文档创建者，则给被踢的人发type9消息
-                check_author = Document.objects.filter(create_user=request.user, id=doc.id)
-                #请求者是删除本人，则给创建者发type8消息
-                myself = Team.objects.filter(Q(user=request.user),Q(user=person))
+                #请求者是删除本人，且请求者是普通协作者则给创建者发type8消息
+                myself = Team.objects.filter(Q(user=request.user),Q(user=person),role=0)
                 #请求的人是创建者
-                if check_author.count() > 0:
-                    self.perform_destroy(instance)
-                    # 给被踢的人发type9消息
-                    Message.objects.create(user=person, document=doc, origin_user=request.user, type=9)
-                    # 获取协作者列表
-                    coworker = get(doc)
-                    return JsonResponse(coworker, safe=False)
+                if Team.objects.filter(user=request.user,document=doc,role=1).count()>0: #被删除者不能是管理员（个人文档创建者）
+                    if Team.objects.filter(user=person,document=doc,role=1).count()>0:
+                        return Response(status=status.HTTP_401_UNAUTHORIZED)
+                    else:
+                        self.perform_destroy(instance)
+                        # 给被踢的人发type9消息
+                        Message.objects.create(user=person, document=doc, origin_user=request.user, type=9)
+                        # 获取协作者列表
+                        coworker = get(doc)
+                        return JsonResponse(coworker, safe=False)
                 #请求的人是删除者本人
                 elif myself.count() > 0:
                     self.perform_destroy(instance)
@@ -201,21 +177,23 @@ class DeleteMemberViewset(mixins.CreateModelMixin,viewsets.GenericViewSet):
                     return Response(status=status.HTTP_401_UNAUTHORIZED)
             #为团队文档删除协作关系
             else:
-                project = doc.parent_doc
-                # 请求的用户是团队的老大，则给被踢的人发type9消息
-                check_project = Document.objects.filter(id=project.id, create_user=request.user)
-                # 请求用户是文档创建者，则给被踢的人发type9消息
-                colla_project = Document.objects.filter(id=doc.id, create_user=request.user)
-                #请求删除用户是自己，则给创建者和老大发type8消息
-                myself = Team.objects.filter(Q(user=request.user), Q(user=person))
-                #请求的用户是团队的老大或文档创建者
-                if check_project.count() > 0 or colla_project.count() > 0:
-                    self.perform_destroy(instance)
-                    # 给被踢的人发type9消息
-                    Message.objects.create(user=person, document=doc, origin_user=request.user, type=9)
-                    # 获取协作者列表
-                    coworker = get(doc)
-                    return JsonResponse(coworker, safe=False)
+                #请求的用户是管理者给被踢人发type9消息
+                admin=Team.objects.filter(user=request.user,document=doc,role=1)
+                #请求删除用户是自己，并且自己是普通协作者，则给创建者和老大发type8消息
+                myself = Team.objects.filter(Q(user=request.user), Q(user=person),role=0)
+                #团队
+                project=doc.parent_doc
+                #请求的用户是团队的老大或文档创建者(管理者)
+                if admin.count() > 0:#被删除的不能是管理者
+                    if Team.objects.filter(user=person,document=doc,role=1).count()>0:
+                        return Response(status=status.HTTP_401_UNAUTHORIZED)
+                    else:
+                        self.perform_destroy(instance)
+                        # 给被踢的人发type9消息
+                        Message.objects.create(user=person, document=doc, origin_user=request.user, type=9)
+                        # 获取协作者列表
+                        coworker = get(doc)
+                        return JsonResponse(coworker, safe=False)
                 #请求删除用户是自己
                 elif myself.count()>0:
                     self.perform_destroy(instance)
@@ -270,7 +248,8 @@ class AcceptInvitationViewset(mixins.CreateModelMixin,viewsets.GenericViewSet):
         if doc.type == 1:
             child_docs_list = Document.objects.filter(parent_doc=instance.document_id)  # 项目下属文档
             for child_doc in child_docs_list:
-                Team.objects.create(document=child_doc, user=instance.user)
+                if Team.objects.filter(document=child_doc, user=instance.user).count() == 0:
+                    Team.objects.create(document=child_doc, user=instance.user)
 
         #给老大发2消息
         leader = doc.create_user

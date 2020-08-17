@@ -166,25 +166,7 @@ class SmsCodeViewset(CreateModelMixin, viewsets.GenericViewSet):
 
 from django.http import HttpResponse, JsonResponse
 import qrcode
-from django.utils.six import BytesIO
-#分享二维码
-# def  makeqrcode(request,data):
-#     # print(request.get_host()+'/'+data+'/')
-#     url = request.get_host()+'/'+data
-#     img = qrcode.make(url)      #传入网址计算出二维码图片字节数据
-#     buf = BytesIO()                                 #创建一个BytesIO临时保存生成图片数据
-#     img.save('./media')                                   #将图片字节数据放到BytesIO临时保存
-#     image_stream = buf.getvalue()                   #在BytesIO临时保存拿出数据
-#     response = HttpResponse(image_stream, content_type="image/jpg")  #将二维码数据返回到页面
-#     return response
 
-# def  makeqrcode(request,data):
-#     url = request.get_host()+'/'+data
-#     img = qrcode.make(url)
-#     img.save('./media/qr.jpeg', 'JPEG')
-#     path = r"./media/qr.jpeg"
-#     file_one = open(path, "rb")
-#     return HttpResponse(file_one.read(), content_type='image/jpg')
 
 def  makeqrcode(request,data):
     url = request.get_host()+'/'+data
@@ -196,12 +178,11 @@ def  makeqrcode(request,data):
     return HttpResponse(image_data, content_type="image/jpeg")
 
 
-
+#搜索用户
 class OtherAPIView(APIView):
-
     def get(self, request):
         words = request.query_params.get('str')
-        results = User.objects.filter(Q(username__contains=words)|Q(mobile=words) | Q(email=words))
+        results = User.objects.filter(Q(username__contains=words)|Q(mobile__contains=words) |Q(email__contains=words))
         aws = []
         for re in results:
             d = {'id': re.id, 'username': re.username, 'head': str(re.head), 'email':re.email, 'mobile':re.mobile}

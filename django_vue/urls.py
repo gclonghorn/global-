@@ -32,6 +32,7 @@ from django.views.static import serve
 from documents.views import *
 from team.views import *
 from users.views import *
+from django.views.generic.base import RedirectView
 router=DefaultRouter()
 
 #使用了自定义的get_quertset方法，所以router.register()中必须加上basename
@@ -88,6 +89,8 @@ router.register(r'AllPack', AllPack, basename='AllPack')
 #全部恢复
 router.register(r'AllRecall', AllRecall, basename='AllRecall')
 
+
+
 urlpatterns = [
     path('admin/', admin.site.urls), #django管理站点
     path('api-auth/', include('rest_framework.urls')),  # 若使用可浏览的api,需要登陆注册视图，url可以自定
@@ -103,5 +106,6 @@ urlpatterns = [
     url(r'^ckeditor/', include('ckeditor_uploader.urls')),
     url(r'^download/(?P<path>.*)$', serve, {'document_root': 'media/upload/', 'show_indexes':True}),
     url(r'qrcode/(.+)$', makeqrcode,name='qrcode'),
-    url(r'search/', OtherAPIView.as_view())
+    url(r'search/', OtherAPIView.as_view()),
+    path('favicon.ico', RedirectView.as_view(url='static/favicon.ico')),
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
