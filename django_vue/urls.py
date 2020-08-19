@@ -88,9 +88,10 @@ router.register(r'Pack', Pack, basename='Pack')
 router.register(r'AllPack', AllPack, basename='AllPack')
 #全部恢复
 router.register(r'AllRecall', AllRecall, basename='AllRecall')
-
-
-
+#拒绝团队邀请信息
+router.register(r'RefuseInvitation', RefuseInvitationViewset, basename='RefuseInvitation')
+#我创建的文档
+router.register(r'MyCreate', MyCreatesViewset, basename='MyCreate')
 urlpatterns = [
     path('admin/', admin.site.urls), #django管理站点
     path('api-auth/', include('rest_framework.urls')),  # 若使用可浏览的api,需要登陆注册视图，url可以自定
@@ -105,7 +106,7 @@ urlpatterns = [
     re_path('media/upload/(?P<path>.*)', serve, {"document_root": 'media/upload/'}),
     url(r'^ckeditor/', include('ckeditor_uploader.urls')),
     url(r'^download/(?P<path>.*)$', serve, {'document_root': 'media/upload/', 'show_indexes':True}),
-    url(r'qrcode/(.+)$', makeqrcode,name='qrcode'),
+    url(r'qrcode/', QrcodeAPIView.as_view()),
     url(r'search/', OtherAPIView.as_view()),
     path('favicon.ico', RedirectView.as_view(url='static/favicon.ico')),
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

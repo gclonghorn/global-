@@ -8,6 +8,7 @@ class Document(models.Model):
     parent_doc = models.ForeignKey('self',related_name='child_docs',on_delete=models.CASCADE,verbose_name="上级文件夹",null=True,blank=True)
     create_user = models.ForeignKey(User, related_name='create', on_delete=models.CASCADE,verbose_name="文档创建者")
     last_modify_user = models.ForeignKey(User,related_name='modify', on_delete=models.CASCADE, verbose_name="最后修改者", null=True)
+    editor=models.ForeignKey(User, related_name='edit', on_delete=models.CASCADE,verbose_name="当前编辑者",null=True,blank=True)
     create_time = models.DateTimeField(auto_now_add=True,verbose_name="文档创建时间")
     modify_time = models.DateTimeField(auto_now=True,verbose_name="文档修改时间")
     # 0是文件 1是团队空间（文件夹）

@@ -7,7 +7,7 @@ class Team(models.Model):
     user = models.ForeignKey(User,on_delete=models.CASCADE,verbose_name='用户',null=True,blank=True)
     create_time = models.DateTimeField(auto_now=True,verbose_name='添加时间')
     modify_time = models.DateTimeField(auto_now_add=True,verbose_name='修改时间')
-    role=models.IntegerField(default=0, verbose_name='0协作者1管理者')
+    role=models.IntegerField(default=0, verbose_name='0协作者1管理者2上级协作者')
 
     def __str__(self):
         return self.document

@@ -17,8 +17,15 @@ class RecycleBinViewset(mixins.ListModelMixin,viewsets.GenericViewSet):
     authentication_classes = (JSONWebTokenAuthentication, authentication.SessionAuthentication)
     ordering_fields = ('modify_time',)
     def get_queryset(self):
-        self.queryset=RecycleBin.objects.filter(user=self.request.user).order_by('-delete_time')
-        return self.queryset
+        ids=[]
+        recycles=RecycleBin.objects.filter(user=self.request.user)
+        for recycle in recycles:
+            if recycle.document.type==0 and recycle.document.parent_doc!=None:
+                pass
+            else:
+                ids.append(recycle.document.id)
+        return RecycleBin.objects.filter(document_id__in=ids)
+
 
 class Recall(mixins.RetrieveModelMixin,viewsets.GenericViewSet):
     queryset = Document.objects.all()
@@ -31,6 +38,11 @@ class Recall(mixins.RetrieveModelMixin,viewsets.GenericViewSet):
         instance.status=1 #恢复到发布状态
         instance.save()
         RecycleBin.objects.get(document_id=instance.id).delete()
+        if instance.type == 1:  #团队被恢复时团队的下属文档也要被恢复
+            child_docs_list = Document.objects.filter(parent_doc=instance)  # 项目下属文档
+            for child_doc in child_docs_list:
+                child_doc.status=1
+                child_doc.save()
         '''
         res = {"code": None, "data": None}
         res["code"] = 200
@@ -47,6 +59,10 @@ class Pack( mixins.DestroyModelMixin, viewsets.GenericViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         RecycleBin.objects.get(document_id=instance.id).delete()
+        if instance.type == 1:  #团队被彻底删除团队的下属文档也要被彻底删除
+            child_docs_list = Document.objects.filter(parent_doc=instance)  # 项目下属文档
+            for child_doc in child_docs_list:
+                child_doc.delete()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -66,6 +82,11 @@ class AllRecall(mixins.ListModelMixin,viewsets.GenericViewSet):
         for doc in docs:
             doc.status=1
             doc.save()
+            if doc.type == 1:  # 团队被恢复时团队的下属文档也要被恢复
+                child_docs_list = Document.objects.filter(parent_doc=doc)  # 项目下属文档
+                for child_doc in child_docs_list:
+                    child_doc.status = 1
+                    child_doc.save()
         RecycleBin.objects.all().delete()
         return Response(status=status.HTTP_200_OK)
 
@@ -81,6 +102,10 @@ class AllPack(mixins.ListModelMixin,viewsets.GenericViewSet):
         for recycle in recycles:
             docs.append(recycle.document)
         for doc in docs:
+            if doc.type == 1:  # 团队被彻底删除团队的下属文档也要被彻底删除
+                child_docs_list = Document.objects.filter(parent_doc=doc)  # 项目下属文档
+                for child_doc in child_docs_list:
+                    child_doc.delete()
             doc.delete()
         RecycleBin.objects.all().delete()
         return Response(status=status.HTTP_200_OK)

@@ -68,7 +68,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = User
-        fields = ("username", "mobile", "email", 'password','id', 'head')
+        fields = ("username", "mobile", "email", 'password','id')#'posts'
         #ids关注者 usernames粉丝
 class UserUpdateSerializer(serializers.ModelSerializer):
     """

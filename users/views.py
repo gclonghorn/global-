@@ -168,14 +168,26 @@ from django.http import HttpResponse, JsonResponse
 import qrcode
 
 
-def  makeqrcode(request,data):
-    url = request.get_host()+'/'+data
-    img = qrcode.make(url)
-    img.save('./media/qr.jpeg', 'JPEG')
-    path = r"./media/qr.jpeg"
-    image_data = open(path, "rb").read()
-    print(image_data)
-    return HttpResponse(image_data, content_type="image/jpeg")
+# def  makeqrcode(request,data):
+#     url = request.get_host()+'/'+data
+#     img = qrcode.make(url)
+#     img.save('./media/qr.jpeg', 'JPEG')
+#     path = r"./media/qr.jpeg"
+#     image_data = open(path, "rb").read()
+#     print(image_data)
+#     return HttpResponse(image_data, content_type="image/jpeg")
+
+#生成二维码
+class QrcodeAPIView(APIView):
+    def get(self, request):
+        id = request.query_params.get('doc')
+        url = request.get_host() + '/index/#/editorPage?key=' + id
+        img = qrcode.make(url)
+        img.save('./media/qr.jpeg', 'JPEG')
+        path = r"./media/qr.jpeg"
+        image_data = open(path, "rb").read()
+        print(image_data)
+        return HttpResponse(image_data, content_type="image/jpeg")
 
 
 #搜索用户
@@ -188,4 +200,3 @@ class OtherAPIView(APIView):
             d = {'id': re.id, 'username': re.username, 'head': str(re.head), 'email':re.email, 'mobile':re.mobile}
             aws.append(d)
         return JsonResponse(aws, safe=False)
-

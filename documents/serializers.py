@@ -20,22 +20,29 @@ class DocUpdateSerializer(serializers.ModelSerializer):
         model = Document
         fields = ('name', 'content',)
 
+#用于展示用户详细信息
+#用于查看协作者
+class UserSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = User
+        fields = ("id", "username", "head")
 # 用于查看文集
 class DocRetrieveSerializer(serializers.ModelSerializer):
-    create_user = serializers.HiddenField(
-        default=serializers.CurrentUserDefault())
+    create_user = UserSerializer()
     comments=CommentDetailSerializer(many=True)
+    editor=UserSerializer()
     has_collect = serializers.SerializerMethodField()
-
     def get_has_collect(self, obj):
         collect = Collect.objects.filter(author=self.context['request'].user, document=obj).count()
         if collect >0:data =1
         else :data=0
         return data
+
     class Meta:
         model = Document
         fields = ('id','name', 'create_user','content','parent_doc','role',
-                  'type', 'modify_time', 'create_time','last_modify_user','comments','has_collect')
+                  'type', 'modify_time', 'create_time','last_modify_user','comments','has_collect','editor')
 #用于展示文集列表
 class DocListSerializer(serializers.ModelSerializer):
     has_collect = serializers.SerializerMethodField()
